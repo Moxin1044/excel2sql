@@ -16,6 +16,7 @@
 |---|---|
 | 自动类型推断 | `INT` / `BIGINT` / `DECIMAL(p,s)` / `DOUBLE` / `BOOLEAN` / `DATE` / `DATETIME` / `TIME` / `VARCHAR(n)` / `TEXT` |
 | 采样推断 | 默认只看前 1000 行（`--sample-size` 可调），大表不再逐列全表扫描 |
+| 文本列不截断 | 文本列默认使用 `TEXT`（不限长），采样之外的长值也不会被截断；需要紧凑 schema 时用 `--varchar` 全文件扫描一次长度，精确给出 `VARCHAR(n)` |
 | 精度安全 | 用 `Decimal` 计算精度，金额不会变成科学计数法；**超过 15 位或带前导零的数字自动按文本处理**（订单号、身份证、手机号） |
 | 智能文本识别 | 列名含「手机 / 电话 / 编号 / 卡号 / 账号 / 编码 / phone / code…」时自动按文本处理（`--no-smart-text` 关闭） |
 | 多方言 | `--dialect mysql`（默认）/ `postgres` / `sqlite`，各自的标识符引号、转义规则与类型映射 |
@@ -103,6 +104,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 | `--batch-size` | 每条 INSERT 的行数 | `500` |
 | `--limit` | 每张表最多写入的行数 | `0`（不限） |
 | `--sample-size` | 类型推断采样行数 | `1000` |
+| `--varchar` | 文本列精确使用 `VARCHAR(n)`（全文件扫描一次长度；慢一些但 schema 更紧凑） | 关（文本列用 `TEXT`） |
 | `--add-id` | 追加自增主键 `id` | 关 |
 | `--all-text` | 所有字段按文本处理 | 关 |
 | `--no-smart-text` | 关闭「手机号/编号类列名按文本」 | 关 |
@@ -131,7 +133,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 | 类型混杂 | 文本 |
 | 整列为空 | `VARCHAR(255)` |
 
-`VARCHAR` 长度按 16 / 32 / 64 / 128 / 255 档位取整，超过 255 用 `TEXT`，超过 65535 用 `LONGTEXT`。
+`VARCHAR` 长度按 16 / 32 / 64 / 128 / 255 档位取整，超过 255 用 `TEXT`，超过 65535 用 `LONGTEXT`；**默认模式下文本列统一用 `TEXT`**（永不截断），加 `--varchar` 时才会做全文件长度扫描并输出精确的 `VARCHAR(n)`。
 
 ---
 

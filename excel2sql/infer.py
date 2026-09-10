@@ -213,3 +213,28 @@ def apply_smart_text(header, types):
         if SMART_TEXT_PATTERN.search(str(name)):
             result[index] = ColumnType("text")
     return result
+
+
+def is_text_kind(column_type):
+    return column_type.kind in ("varchar", "text", "longtext")
+
+
+def to_safe_text(types):
+    """把可变的 VARCHAR(n) 统一成不限长的 TEXT，避免采样之外的长值被截断。"""
+    return [
+        ColumnType("text") if column.kind == "varchar" else column
+        for column in types
+    ]
+
+
+def refine_text_length(column_type, max_length):
+    """用全文件扫描出的真实最大长度，精确决定 VARCHAR(n) / TEXT / LONGTEXT。"""
+    if not is_text_kind(column_type) or max_length is None:
+        return column_type
+    if max_length <= 255:
+        for cap in VARCHAR_BUCKETS:
+            if max_length <= cap:
+                return ColumnType("varchar", length=cap)
+    if max_length <= 65535:
+        return ColumnType("text")
+    return ColumnType("longtext")

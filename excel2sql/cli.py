@@ -12,8 +12,9 @@ from . import __version__
 from .columntype import ColumnType
 from .console import Console
 from .dialects import get_dialect
-from .infer import apply_smart_text, infer_types
-from .reader import iter_sheets
+from .infer import (apply_smart_text, infer_types, refine_text_length,
+                    to_safe_text)
+from .reader import iter_sheets, scan_text_lengths
 from .writer import SqlWriter
 
 GENERIC_SHEET_NAME = re.compile(r"^(sheet|工作表|csv)\s*\d*$", re.IGNORECASE)
@@ -39,6 +40,8 @@ def build_parser():
     parser.add_argument("--suffix", default="", help="表名后缀")
     parser.add_argument("--add-id", action="store_true", help="自动追加自增主键 id 列")
     parser.add_argument("--all-text", action="store_true", help="所有字段统一使用文本类型")
+    parser.add_argument("--varchar", action="store_true",
+                        help="文本列精确使用 VARCHAR(n)（需全文件扫描一次长度；默认文本列用 TEXT，永不截断）")
     parser.add_argument("--no-smart-text", action="store_true",
                         help="关闭智能文本识别（默认把手机号/编号/卡号类列名按文本处理）")
     parser.add_argument("--drop", action="store_true", help="生成 DROP TABLE IF EXISTS 语句")
@@ -129,6 +132,16 @@ def main(argv=None):
     console.step("方言 %s ｜ 输入 %d 个文件 ｜ 采样 %d 行" % (
         dialect.name, len(args.inputs), args.sample_size))
 
+    text_lengths = {}
+    if args.varchar:
+        console.step("扫描文本列长度（--varchar，全文件一次）…")
+        try:
+            text_lengths = scan_text_lengths(args.inputs, sheet_filter=sheet_filter,
+                                             limit=args.limit)
+        except (FileNotFoundError, ValueError, RuntimeError) as exc:
+            console.error(str(exc))
+            return 1
+
     table_rows = []
     total_rows = 0
 
@@ -169,6 +182,15 @@ def main(argv=None):
                     types = apply_smart_text(sheet.header, types)
                 if args.all_text:
                     types = [ColumnType("text") for _ in types]
+                elif args.varchar:
+                    lengths = text_lengths.get((sheet.source, sheet.sheet_name), [])
+                    types = [
+                        refine_text_length(column_type, lengths[index] if index < len(lengths) else None)
+                        for index, column_type in enumerate(types)
+                    ]
+                else:
+                    # 默认：文本列用不限长的 TEXT，避免采样之外的长值被截断
+                    types = to_safe_text(types)
 
                 if not sheet.sample and args.limit == 0:
                     console.warn("跳过空表 %s（sheet: %s）" % (table_name, sheet.sheet_name))

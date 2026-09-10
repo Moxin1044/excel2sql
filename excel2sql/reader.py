@@ -173,3 +173,25 @@ def iter_sheets(paths, sample_size=1000, sheet_filter=None):
             yield from _csv_sheets(path, sample_size, sheet_filter)
         else:
             raise ValueError("不支持的输入格式：%s（支持 .xlsx / .xls / .csv）" % extension)
+
+
+def scan_text_lengths(paths, sheet_filter=None, limit=0):
+    """全文件扫描每列文本的最大长度（用于 --varchar 精确计算 VARCHAR(n)）。
+
+    返回 {(来源文件, sheet 名): [每列最大长度, ...]}
+    """
+    lengths = {}
+    for sheet in iter_sheets(paths, sample_size=1, sheet_filter=sheet_filter):
+        max_lengths = [0] * sheet.column_count
+        count = 0
+        for row in sheet.rows:
+            for index in range(sheet.column_count):
+                value = row[index] if index < len(row) else None
+                if isinstance(value, str):
+                    if len(value) > max_lengths[index]:
+                        max_lengths[index] = len(value)
+            count += 1
+            if limit and count >= limit:
+                break
+        lengths[(sheet.source, sheet.sheet_name)] = max_lengths
+    return lengths
