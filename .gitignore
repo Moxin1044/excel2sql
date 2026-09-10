@@ -1,6 +1,19 @@
+.venv/
 venv/
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+.idea/
+.vscode/
+
+# 示例/测试产物
+examples/output/
+*.sql
 *.xlsx
 *.xls
-*.sql
+!tests/fixtures/*.xlsx
